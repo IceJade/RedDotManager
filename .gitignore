@@ -1,0 +1,14 @@
+# system
+
+
+# unity project
+/Library
+/Temp
+/Logs
+/UserSettings
+
+# vs files
+.vsconfig
+*.csproj
+*.sln
+*.userprefs
