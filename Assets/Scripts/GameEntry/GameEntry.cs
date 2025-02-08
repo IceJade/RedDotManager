@@ -1,15 +1,13 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+﻿using UnityEngine;
 
-namespace Tetris
+namespace Chanto
 {
     public class GameEntry : MonoBehaviour
     {
         /// <summary>
         /// 红点管理器
         /// </summary>
-        public static RedDotManager RedDotManager
+        public static RedDotManager RedDot
         {
             get;
             private set;
@@ -17,7 +15,7 @@ namespace Tetris
 
         void Awake()
         {
-            RedDotManager = new RedDotManager();
+            RedDot = new RedDotManager();
         }
 
         // Start is called before the first frame update

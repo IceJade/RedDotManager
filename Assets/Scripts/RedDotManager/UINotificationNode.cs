@@ -1,9 +1,10 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 
-namespace Tetris
+namespace Chanto
 {
     // 界面通知节点
-    public class UINotificationNode : ILinkedTreeNode
+    public class UINotificationNode
     {
         //----------------------------------------------------------------------
         // 常量
@@ -14,45 +15,38 @@ namespace Tetris
         //----------------------------------------------------------------------
         // 成员变量
 
-        protected RedDotManager m_manager = null;
-        protected string m_path = "";
-        protected int m_nodeHash = 0;
-        protected HashSet<int> m_selfCallerSet = null;
-        protected int m_selfNotificationCount = 0;
-        protected int m_childNotificationCount = 0;
-        protected int m_lastSetCount = 0;
-        protected bool m_alwaysHide = false;
-        protected bool m_redDotVisible = false;
-        protected long m_currentSerialNum = 0;
-        protected long m_displaySerialNum = 0;
+        protected RedDotManager m_Manager = null;
+        protected HashSet<int> m_SelfCallerSet = new HashSet<int>();
+        protected int m_SelfNotificationCount = 0;
+        protected int m_ChildNotificationCount = 0;
+        protected int m_LastSetCount = 0;
+        protected bool m_AlwaysHide = false;
+        protected bool m_RedDotVisible = false;
+        protected long m_CurrentSerialNum = 0;
+        protected long m_DisplaySerialNum = 0;
 
 #if UNITY_EDITOR
-        protected HashSet<string> m_debugCallerSet = null;
+        public HashSet<string> m_DebugCallerSet = new HashSet<string>();
 #endif
-
-
         //----------------------------------------------------------------------
         // 属性
 
-        public ILinkedTreeNode Parent { get; set; }
-        public ILinkedTreeNode Child { get; set; }
-        public ILinkedNode Previous { get; set; }
-        public ILinkedNode Next { get; set; }
+        public UINotificationNode Parent { get; set; }
+        public List<UINotificationNode> Children { get; set; }
 
-        public string Path { get { return m_path; } }
-        public int NodeHash { get { return m_nodeHash; } }
+        public string Path { get; private set; }
+        public int NodeHash { get; private set; }
         public int NotifyParent = NOTIFY_PARENT_COUNT;
-        public int NotificationCount { get { return m_selfNotificationCount + m_childNotificationCount; } }
-        public bool IsRedDotVisible { get { return NotificationCount > 0 && m_currentSerialNum < m_displaySerialNum && !m_alwaysHide; } }
+        public int NotificationCount { get { return m_SelfNotificationCount + m_ChildNotificationCount; } }
+        public bool IsRedDotVisible { get { return NotificationCount > 0 && m_CurrentSerialNum < m_DisplaySerialNum && !m_AlwaysHide; } }
 
         //----------------------------------------------------------------------
         // 构造函数
-
         public UINotificationNode(RedDotManager manager, string path)
         {
-            m_manager = manager;
-            m_path = path;
-            m_nodeHash = RedDotManager.GetNodeHash(m_path);
+            m_Manager = manager;
+            Path = path;
+            NodeHash = RedDotManager.GetNodeHash(Path);
         }
 
         //----------------------------------------------------------------------
@@ -60,9 +54,9 @@ namespace Tetris
 
         public void Reset()
         {
-            m_redDotVisible = false;
-            m_currentSerialNum = 0;
-            m_displaySerialNum = 0;
+            m_RedDotVisible = false;
+            m_CurrentSerialNum = 0;
+            m_DisplaySerialNum = 0;
         }
 
         public bool IsRoot()
@@ -70,10 +64,23 @@ namespace Tetris
             return Parent == null;
         }
 
-        public void AddChild(UINotificationNode node)
+        public void AddChild(UINotificationNode child)
         {
-            if (node == null) return;
-            TreeLinker.AddChild(this, node);
+            if (child == null)
+            {
+                return;
+            }
+
+            child.Parent = this;
+            if (Children != null)
+            {
+                Children.Add(child);
+            }
+            else
+            {
+                Children = new List<UINotificationNode>();
+                Children.Add(child);
+            }
         }
 
         public void IncreaseNotificationCount(string caller, bool sendEvent = true)
@@ -81,14 +88,15 @@ namespace Tetris
             UpdateDisplaySerialNum();
             int oldCount = NotificationCount;
             int callerId = RedDotManager.GetNodeHash(caller);
-            if (m_selfCallerSet == null) m_selfCallerSet = new HashSet<int>();
-            else if (m_selfCallerSet.Contains(callerId)) return;
-            m_selfCallerSet.Add(callerId);
+            if (m_SelfCallerSet.Contains(callerId))
+            {
+                return;
+            }
+            m_SelfCallerSet.Add(callerId);
 #if UNITY_EDITOR
-            if (m_debugCallerSet == null) m_debugCallerSet = new HashSet<string>();
-            m_debugCallerSet.Add(caller);
+            m_DebugCallerSet.Add(caller);
 #endif
-            m_selfNotificationCount = m_selfCallerSet.Count;
+            m_SelfNotificationCount = m_SelfCallerSet.Count;
             if (NotifyParent > 0)
             {
                 UpdateParentNotificationCount(sendEvent);
@@ -101,47 +109,35 @@ namespace Tetris
 
         public void DecreaseNotificationCount(string caller, bool sendEvent = true)
         {
-            if (m_selfCallerSet != null)
+            int callerId = RedDotManager.GetNodeHash(caller);
+            if (m_SelfCallerSet.Remove(callerId))
             {
-                int callerId = RedDotManager.GetNodeHash(caller);
-                if (m_selfCallerSet.Remove(callerId))
-                {
 #if UNITY_EDITOR
-                    if (m_debugCallerSet != null) m_debugCallerSet.Remove(caller);
+                m_DebugCallerSet.Remove(caller);
 #endif
-                    m_selfNotificationCount = m_selfCallerSet.Count;
-                    UpdateParentNotificationCount(sendEvent);
-                    if (sendEvent)
-                    {
-                        UpdateRedDot();
-                    }
+                m_SelfNotificationCount = m_SelfCallerSet.Count;
+                UpdateParentNotificationCount(sendEvent);
+                if (sendEvent)
+                {
+                    UpdateRedDot();
                 }
             }
         }
 
         public void ClearNotificationCount(bool clearChildren, bool sendEvent = true)
         {
-            if (m_selfCallerSet != null)
-            {
-                m_selfCallerSet.Clear();
-            }
+            m_SelfCallerSet.Clear();
 #if UNITY_EDITOR
-            if (m_debugCallerSet != null)
-            {
-                m_debugCallerSet.Clear();
-            }
+            m_DebugCallerSet.Clear();
 #endif
-            m_selfNotificationCount = 0;
+            m_SelfNotificationCount = 0;
             int childNotifyParent = 0;
-            if (clearChildren && Child != null)
+            if (clearChildren && Children != null)
             {
-                ListLinker.Iterator iter = new ListLinker.Iterator(Child);
-                UINotificationNode childNode = null;
-                while (iter.MoveNext())
+                foreach (var child in Children)
                 {
-                    childNode = (iter.Current as UINotificationNode);
-                    childNotifyParent |= childNode.NotifyParent;
-                    childNode.ClearNotificationCount(true, sendEvent);
+                    childNotifyParent |= child.NotifyParent;
+                    child.ClearNotificationCount(true, sendEvent);
                 }
             }
             // 如果子节点没有配置通知父级，则由此节点通知父级
@@ -157,23 +153,23 @@ namespace Tetris
 
         public bool IsAlwaysHide()
         {
-            return m_alwaysHide;
+            return m_AlwaysHide;
         }
 
         public void SetAlwaysHide(bool value)
         {
-            if (m_alwaysHide != value)
+            if (m_AlwaysHide != value)
             {
-                m_alwaysHide = value;
+                m_AlwaysHide = value;
                 UpdateRedDot();
             }
         }
 
         public void EraseDisplay()
         {
-            if (m_currentSerialNum < m_displaySerialNum)
+            if (m_CurrentSerialNum < m_DisplaySerialNum)
             {
-                m_currentSerialNum = m_displaySerialNum;
+                m_CurrentSerialNum = m_DisplaySerialNum;
                 UpdateRedDot();
             }
             if (Parent != null && NotifyParent > 0)
@@ -203,8 +199,11 @@ namespace Tetris
 
         protected void ChangeChildNotificationCount(int count, bool sendEvent = true)
         {
-            m_childNotificationCount += count;
-            if (m_childNotificationCount < 0) m_childNotificationCount = 0;
+            m_ChildNotificationCount += count;
+            if (m_ChildNotificationCount < 0)
+            {
+                m_ChildNotificationCount = 0;
+            }
             if (sendEvent)
             {
                 UpdateRedDot();
@@ -217,8 +216,8 @@ namespace Tetris
             {
                 UINotificationNode parentNode = (Parent as UINotificationNode);
                 int count = IsRedDotVisible ? NotificationCount : 0;
-                int diff = count - m_lastSetCount;
-                m_lastSetCount = count;
+                int diff = count - m_LastSetCount;
+                m_LastSetCount = count;
                 if (diff != 0)
                 {
                     parentNode.ChangeChildNotificationCount(diff, sendEvent);
@@ -229,7 +228,7 @@ namespace Tetris
 
         protected void UpdateDisplaySerialNum()
         {
-            m_displaySerialNum = RedDotManager.GetDisplaySerialNum();
+            m_DisplaySerialNum = RedDotManager.GetDisplaySerialNum();
             if (Parent != null && NotifyParent > 0)
             {
                 UINotificationNode parentNode = (Parent as UINotificationNode);
@@ -240,20 +239,18 @@ namespace Tetris
         protected void UpdateRedDot()
         {
             bool visible = IsRedDotVisible;
-            if (m_redDotVisible != visible)
+            if (m_RedDotVisible != visible)
             {
-                m_redDotVisible = visible;
-                m_manager.OnNotification(this, m_redDotVisible);
+                m_RedDotVisible = visible;
+                m_Manager.OnNotification(this, m_RedDotVisible);
             }
         }
 
 #if UNITY_EDITOR
-
-        public HashSet<string> DebugGetCallerNames()
+        public List<string> DebugGetCallerNames()
         {
-            return m_debugCallerSet;
+            return m_DebugCallerSet.ToList();
         }
-
 #endif
     }
 }

@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 
-namespace Tetris
+namespace Chanto
 {
     public class PathParser
     {

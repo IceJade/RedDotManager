@@ -27,19 +27,19 @@ using System.Collections.Generic;
     上面这段代码执行后(前两行调用代码顺序随意)，前两个红点依然显示，最后一个不显示;
 ********************************************************************************/
 
-namespace Tetris
+namespace Chanto
 {
-    public class RedDotManager
+    public class RedDotManager : MonoBehaviour
     {
         public const string DEFAULT_CALLER = "__DEFAULT_CALLER__";
 
         // 通知节点表;
-        private Dictionary<int, UINotificationNode> m_nodes = new Dictionary<int, UINotificationNode>();
+        private Dictionary<int, UINotificationNode> m_Nodes = new Dictionary<int, UINotificationNode>();
 
         // 节点hash与红点操作对应表;
-        private Dictionary<int, UINotificationOPRedDot> m_opMap = new Dictionary<int, UINotificationOPRedDot>();
+        private Dictionary<int, UINotificationOPRedDot> m_OpMap = new Dictionary<int, UINotificationOPRedDot>();
 
-        private static long s_displaySerialNum = 0;
+        private static long s_DisplaySerialNum = 0;
 
         private PathParser m_PathParser = new PathParser();
 
@@ -51,19 +51,20 @@ namespace Tetris
         /// <param name="path">路径</param>
         /// <param name="visible">true:显示 false:隐藏</param>
         /// <param name="caller">操作者</param>
-        public void Set(string path, bool visible, string caller = RedDotManager.DEFAULT_CALLER)
+        public void Set(string path, bool visible, string caller = DEFAULT_CALLER)
         {
-            if (!GameUtils.IsValidString(path))
+            if (string.IsNullOrEmpty(path))
+            {
                 return;
+            }
 
             if (visible)
             {
-                this.IncreaseNotificationCount(path, caller);
-
+                IncreaseNotificationCount(path, caller);
             }
             else
             {
-                this.DecreaseNotificationCount(path, caller);
+                DecreaseNotificationCount(path, caller);
             }
         }
 
@@ -72,9 +73,10 @@ namespace Tetris
         /// </summary>
         /// <param name="path">路径</param>
         /// <param name="clearChildern">是否清除子路径计数</param>
+        
         public void Clear(string path, bool clearChildern = false)
         {
-            this.ClearNotificationCount(path, clearChildern);
+            ClearNotificationCount(path, clearChildern);
         }
 
         /// <summary>
@@ -85,7 +87,7 @@ namespace Tetris
         /// <returns></returns>
         public void Erase(string path)
         {
-            this.EraseNotificationDisplay(path);
+            EraseNotificationDisplay(path);
         }
 
         /// <summary>
@@ -93,9 +95,10 @@ namespace Tetris
         /// </summary>
         /// <param name="path">路径</param>
         /// <returns>true:可见 false:不可见</returns>
+        
         public bool IsVisible(string path)
         {
-            UINotificationNode node = this.GetNode(path);
+            UINotificationNode node = GetNode(path);
             return node != null ? node.IsRedDotVisible : false;
         }
 
@@ -106,7 +109,7 @@ namespace Tetris
         /// <param name="alwaysHide">true:始终可见 false:始终隐藏</param>
         public void SetAlwaysHide(string path, bool alwaysHide)
         {
-            this.SetNodeAlwaysHide(path, alwaysHide);
+            SetNodeAlwaysHide(path, alwaysHide);
         }
 
 
@@ -116,25 +119,30 @@ namespace Tetris
         /// </summary>
         /// <param name="path">路径</param>
         /// <param name="objRedDot">红点对象</param>
+        
         public void RegisterObject(string path, GameObject objRedDot)
         {
             if (null == objRedDot)
-                return;
-
-            if (!GameUtils.IsValidString(path))
-                return;
-
-            int nodeHash = RedDotManager.GetNodeHash(path);
-            int instanceID = objRedDot.GetInstanceID();
-            UINotificationOPRedDot op = null;
-            if (this.m_opMap.TryGetValue(instanceID, out op))
             {
-                if (op.nodeHash != nodeHash)
+                return;
+            }
+
+            if (string.IsNullOrEmpty(path))
+            {
+                return;
+            }
+
+            int nodeHash = GetNodeHash(path);
+            int instanceID = objRedDot.GetInstanceID();
+            UINotificationOPRedDot op;
+            if (m_OpMap.TryGetValue(instanceID, out op))
+            {
+                if (op.NodeHash != nodeHash)
                 {
-                    m_opMap.Remove(instanceID);
-                    this.RemoveNotificationOPByNodeHash(op.nodeHash, op);
-                    op.nodeHash = nodeHash;
-                    op.path = path;
+                    m_OpMap.Remove(instanceID);
+                    RemoveNotificationOPByNodeHash(op.NodeHash, op);
+                    op.NodeHash = nodeHash;
+                    op.Path = path;
                 }
                 else
                 {
@@ -144,11 +152,11 @@ namespace Tetris
             else
             {
                 op = new UINotificationOPRedDot(nodeHash, objRedDot);
-                op.path = path;
+                op.Path = path;
             }
 
-            m_opMap.Add(instanceID, op);
-            this.AddNotificationOPByNodeHash(nodeHash, op);
+            m_OpMap.Add(instanceID, op);
+            AddNotificationOPByNodeHash(nodeHash, op);
         }
 
         /// <summary>
@@ -157,33 +165,24 @@ namespace Tetris
         /// <param name="path">路径</param>
         public void RemoveObjects(string path)
         {
-            if (!GameUtils.IsValidString(path))
-                return;
-
-            int nodeHash = RedDotManager.GetNodeHash(path);
-            UINotificationOPRedDot removedOP = null;
-            var e = m_opMap.GetEnumerator();
-            while (e.MoveNext())
+            if (string.IsNullOrEmpty(path))
             {
-                if (e.Current.Value.nodeHash == nodeHash)
+                return;
+            }
+
+            int nodeHash = GetNodeHash(path);
+            List<int> removed = new List<int>();
+            foreach (KeyValuePair<int, UINotificationOPRedDot> kvp in m_OpMap)
+            {
+                UINotificationOPRedDot dot = kvp.Value;
+                if (dot.NodeHash == nodeHash)
                 {
-                    this.RemoveNotificationOPByNodeHash(nodeHash, e.Current.Value);
-                    if (removedOP == null)
-                    {
-                        removedOP = e.Current.Value;
-                    }
-                    else
-                    {
-                        ListLinker.AddNext(removedOP, e.Current.Value);
-                    }
+                    removed.Add(kvp.Key);
                 }
             }
-            e.Dispose();
-
-            ListLinker.Iterator iter = new ListLinker.Iterator(removedOP);
-            while (iter.MoveNext())
+            foreach (var key in removed)
             {
-                m_opMap.Remove((iter.Current as UINotificationOPRedDot).instanceID);
+                m_OpMap.Remove(key);
             }
         }
 
@@ -192,21 +191,26 @@ namespace Tetris
         /// </summary>
         /// <param name="path">路径</param>
         /// <param name="obj">红点对象</param>
+        
         public void RemoveObject(string path, GameObject obj)
         {
             if (null == obj)
-                return;
-
-            if (!GameUtils.IsValidString(path))
-                return;
-
-            int nodeHash = RedDotManager.GetNodeHash(path);
-            UINotificationOPRedDot op = null;
-            int instanceID = obj.GetInstanceID();
-            if (m_opMap.TryGetValue(instanceID, out op) && op.nodeHash == nodeHash)
             {
-                m_opMap.Remove(instanceID);
-                this.RemoveNotificationOPByNodeHash(op.nodeHash, op);
+                return;
+            }
+
+            if (string.IsNullOrEmpty(path))
+            {
+                return;
+            }
+
+            int nodeHash = GetNodeHash(path);
+            UINotificationOPRedDot op;
+            int instanceID = obj.GetInstanceID();
+            if (m_OpMap.TryGetValue(instanceID, out op) && op.NodeHash == nodeHash)
+            {
+                m_OpMap.Remove(instanceID);
+                RemoveNotificationOPByNodeHash(op.NodeHash, op);
             }
         }
 
@@ -215,15 +219,67 @@ namespace Tetris
         /// </summary>
         public void ClearObjects()
         {
-            UINotificationOPRedDot op = null;
-            var e = m_opMap.GetEnumerator();
-            while (e.MoveNext())
+            foreach (KeyValuePair<int, UINotificationOPRedDot> kvp in m_OpMap)
             {
-                op = e.Current.Value as UINotificationOPRedDot;
-                this.RemoveNotificationOPByNodeHash(op.nodeHash, op);
+                UINotificationOPRedDot op = kvp.Value;
+                RemoveNotificationOPByNodeHash(op.NodeHash, op);
             }
-            e.Dispose();
-            m_opMap.Clear();
+
+            m_OpMap.Clear();
+        }
+
+        /// <summary>
+        /// 取得当前通知计数，大于0则表示红点显示, 红点上要求显示数量可调用此接口获取
+        /// </summary>
+        /// <param name="path"></param>
+        /// <returns></returns>
+        public int GetNotificationCount(string path)
+        {
+            UINotificationNode node = GetNode(path);
+            if (node != null)
+            {
+                return node.NotificationCount;
+            }
+            return 0;
+        }
+
+        /// <summary>
+        /// 获得指定层级的显示红点的子节点数量(红点数量)
+        /// </summary>
+        /// <param name="path">路径</param>
+        /// <param name="child_layer">子节点的层级:为0时表示所有红点数量之和,为1时表示第一层显示红点的子节点数量,依次类推</param>
+        /// <returns></returns>
+        public int GetChildCount(string path, int child_layer = 0)
+        {
+            int count = 0;
+
+            if (child_layer <= 0)
+            {
+                count = this.GetNotificationCount(path);
+            }
+            else
+            {
+                foreach (var per in this.m_Nodes)
+                {
+                    if (per.Value.Path == path)
+                    {
+                        foreach (var child in per.Value.Children)
+                        {
+                            if (child_layer <= 1)
+                            {
+                                if (child.NotificationCount > 0)
+                                    count++;
+                            }
+                            else
+                            {
+                                count += this.GetChildCount(child.Path, child_layer - 1);
+                            }
+                        }
+                    }
+                }
+            }
+
+            return count;
         }
 
         /// <summary>
@@ -231,14 +287,11 @@ namespace Tetris
         /// </summary>
         public void UpdateObjects()
         {
-            UINotificationOPRedDot op = null;
-            var e = m_opMap.GetEnumerator();
-            while (e.MoveNext())
+            foreach (KeyValuePair<int, UINotificationOPRedDot> kvp in m_OpMap)
             {
-                op = e.Current.Value as UINotificationOPRedDot;
-                op.OnNotification(op.path, op.nodeHash, this.GetNotificationCountByNodeHash(op.nodeHash) > 0);
+                UINotificationOPRedDot op = kvp.Value;
+                op.OnNotification(op.Path, op.NodeHash, GetNotificationCountByNodeHash(op.NodeHash) > 0);
             }
-            e.Dispose();
         }
 
         /// <summary>
@@ -246,19 +299,16 @@ namespace Tetris
         /// </summary>
         public void Reset()
         {
-            UINotificationNode node = null;
-            var e = m_nodes.GetEnumerator();
-            while (e.MoveNext())
+            foreach (KeyValuePair<int, UINotificationNode> kvp in m_Nodes)
             {
-                node = e.Current.Value;
+                UINotificationNode node = kvp.Value;
                 if (node.IsRoot())
                 {
                     node.ClearNotificationCount(true, false);
                 }
                 node.Reset();
             }
-            e.Dispose();
-            m_nodes.Clear();
+            m_Nodes.Clear();
         }
 
         #endregion
@@ -299,8 +349,8 @@ namespace Tetris
         /// <returns></returns>
         private UINotificationNode GetNode(int nodeHash)
         {
-            UINotificationNode node = null;
-            if (m_nodes.TryGetValue(nodeHash, out node))
+            UINotificationNode node;
+            if (m_Nodes.TryGetValue(nodeHash, out node))
             {
                 return node;
             }
@@ -338,8 +388,10 @@ namespace Tetris
         /// <param name="alwaysHide"></param>
         private void SetNodeAlwaysHide(string path, bool alwaysHide)
         {
-            if (!GameUtils.IsValidString(path))
+            if (string.IsNullOrEmpty(path))
+            {
                 return;
+            }
 
             UINotificationNode node = GetNode(path, true);
             if (node != null)
@@ -374,10 +426,7 @@ namespace Tetris
         {
             caller = GetCallerName(caller);
             UINotificationNode node = GetNode(path);
-            if (node != null)
-            {
-                node.DecreaseNotificationCount(caller);
-            }
+            node?.DecreaseNotificationCount(caller);
         }
 
         /// <summary>
@@ -388,10 +437,7 @@ namespace Tetris
         private void ClearNotificationCount(string path, bool clearChildren)
         {
             UINotificationNode node = GetNode(path);
-            if (node != null)
-            {
-                node.ClearNotificationCount(clearChildren);
-            }
+            node?.ClearNotificationCount(clearChildren);
         }
 
         /// <summary>
@@ -401,25 +447,7 @@ namespace Tetris
         private void EraseNotificationDisplay(string path)
         {
             UINotificationNode node = GetNode(path);
-            if (node != null)
-            {
-                node.EraseDisplay();
-            }
-        }
-
-        /// <summary>
-        /// 取得当前通知计数，大于0则表示红点显示
-        /// </summary>
-        /// <param name="path"></param>
-        /// <returns></returns>
-        private int GetNotificationCount(string path)
-        {
-            UINotificationNode node = GetNode(path);
-            if (node != null)
-            {
-                return node.NotificationCount;
-            }
-            return 0;
+            node?.EraseDisplay();
         }
 
         /// <summary>
@@ -456,15 +484,22 @@ namespace Tetris
         /// <returns></returns>
         private bool AddNotificationOPByNodeHash(int nodeHash, UINotificationOPRedDot op)
         {
-            bool ret = false;
-            UINotificationOPRedDot root = null;
-            if (m_opMap.TryGetValue(nodeHash, out root))
+            bool ret;
+            UINotificationOPRedDot root;
+            if (m_OpMap.TryGetValue(nodeHash, out root))
             {
-                ret = ListLinker.AddNext(root, op) != null;
+                if (root != null && op != null)
+                {
+                    ret = (root.AddNode(op) != null);
+                }
+                else
+                {
+                    ret = false;
+                }
             }
             else
             {
-                m_opMap.Add(nodeHash, op);
+                m_OpMap.Add(nodeHash, op);
                 ret = true;
             }
             if (ret)
@@ -499,21 +534,23 @@ namespace Tetris
         /// <param name="op"></param>
         private bool RemoveNotificationOPByNodeHash(int nodeHash, UINotificationOPRedDot op)
         {
-            UINotificationOPRedDot root = null;
-            if (m_opMap.TryGetValue(nodeHash, out root))
+            UINotificationOPRedDot root;
+            if (m_OpMap.TryGetValue(nodeHash, out root))
             {
-                UINotificationOPRedDot nextOP = ListLinker.Remove(op) as UINotificationOPRedDot;
+                root.RemoveNode(op);
+                UINotificationOPRedDot nextOP = root.Peek();
                 if (nextOP == null || root == op)
                 {
                     if (nextOP == null)
                     {
-                        m_opMap.Remove(nodeHash);
+                        m_OpMap.Remove(nodeHash);
                     }
                     else
                     {
-                        m_opMap[nodeHash] = nextOP;
+                        m_OpMap[nodeHash] = nextOP;
                     }
                 }
+
                 return true;
             }
             return false;
@@ -526,8 +563,8 @@ namespace Tetris
         /// <returns></returns>
         private UINotificationOPRedDot GetNotificationOP(int nodeHash)
         {
-            UINotificationOPRedDot root = null;
-            if (m_opMap.TryGetValue(nodeHash, out root))
+            UINotificationOPRedDot root;
+            if (m_OpMap.TryGetValue(nodeHash, out root))
             {
                 return root;
             }
@@ -543,30 +580,21 @@ namespace Tetris
         // 红点显示序列号，当前序列号小于显示序列号时才显示
         public static long GetDisplaySerialNum()
         {
-            return ++s_displaySerialNum;
+            return ++s_DisplaySerialNum;
         }
 
         // UINotificationNode回调
         public void OnNotification(UINotificationNode node, bool show)
         {
-            if (node == null) return;
-            UINotificationOPRedDot root = null;
-            if (m_opMap.TryGetValue(node.NodeHash, out root))
+            if (node == null)
             {
-                ListLinker.Iterator iter = new ListLinker.Iterator(root);
-                IUINotificationOP op;
-                while (iter.MoveNext())
-                {
-                    op = (iter.Current as IUINotificationOP);
-                    if (op != null)
-                    {
-                        op.OnNotification(node.Path, node.NodeHash, show);
-                    }
-                    else
-                    {
-                        iter.RemoveCurrent();
-                    }
-                }
+                return;
+            }
+
+            if (m_OpMap.TryGetValue(node.NodeHash, out UINotificationOPRedDot root))
+            {
+                root.OnNotification(node.Path, node.NodeHash, show);
+                root.NotifyOthers(node.Path, node.NodeHash, show);
             }
         }
 
@@ -607,7 +635,7 @@ namespace Tetris
                 }
             }
 
-            m_nodes.Add(node.NodeHash, node);
+            m_Nodes.Add(node.NodeHash, node);
 
             return node;
         }

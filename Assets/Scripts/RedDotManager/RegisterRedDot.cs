@@ -1,6 +1,6 @@
 ﻿using UnityEngine;
 
-namespace Tetris
+namespace Chanto
 {
     public class RegisterRedDot : MonoBehaviour
     {
@@ -10,13 +10,13 @@ namespace Tetris
         void Start()
         {
             if (!string.IsNullOrEmpty(Path))
-                GameEntry.RedDotManager.RegisterObject(Path, this.gameObject);
+                GameEntry.RedDot.RegisterObject(Path, this.gameObject);
         }
 
         private void OnDestroy()
         {
             if (!string.IsNullOrEmpty(Path))
-                GameEntry.RedDotManager.RemoveObject(Path, this.gameObject);
+                GameEntry.RedDot.RemoveObject(Path, this.gameObject);
         }
     }
 }

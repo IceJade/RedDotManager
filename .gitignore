@@ -6,9 +6,14 @@
 /Temp
 /Logs
 /UserSettings
+/obj
 
 # vs files
 .vsconfig
 *.csproj
 *.sln
 *.userprefs
+/.vs
+
+# git files
+/.git
